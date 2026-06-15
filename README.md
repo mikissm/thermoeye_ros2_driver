@@ -4,18 +4,32 @@ ROS2 driver for ThermoEye thermal cameras based on TmSDK.
 
 ## Features
 
-* Thermal camera initialization through TmSDK
+* Thermal camera initialization via TmSDK
 * Real-time thermal image acquisition
 * ROS2 image publishing
-* Compatible with ROS2 Humble
 * OpenCV integration
+* Tested on ROS2 Humble (Ubuntu 22.04)
 
 ## Environment
 
 * Ubuntu 22.04
 * ROS2 Humble
 * OpenCV 4.x
-* ThermoEye TmSDK
+* TmSDK 2.1.0
+
+## Prerequisites
+
+Install TmSDK separately before building this package.
+
+Official TmSDK release:
+
+https://github.com/ThermoEye/TmSDK/releases/tag/2.1.0
+
+Example:
+
+```bash
+sudo dpkg -i tmsdk_2.1.0_amd64.deb
+```
 
 ## Build
 
@@ -33,24 +47,34 @@ ros2 run thermal_cam_driver thermal_node
 
 ## Published Topics
 
-| Topic              | Type              | Description          |
-| ------------------ | ----------------- | -------------------- |
-| /thermal/image_raw | sensor_msgs/Image | Thermal image stream |
+| Topic              | Type                  | Description          |
+| ------------------ | --------------------- | -------------------- |
+| /thermal/image_raw | sensor_msgs/msg/Image | Thermal image stream |
+
+## Package Structure
+
+```text
+thermal_cam_driver
+├── include/
+├── src/
+├── CMakeLists.txt
+└── package.xml
+```
 
 ## Hardware
 
-* ThermoEye Thermal Camera
+* ThermoEye thermal camera
 
 ## Dependencies
 
 * ROS2 Humble
 * OpenCV
 * cv_bridge
-* image_transport
-* ThermoEye TmSDK
+* sensor_msgs
+* TmSDK
 
-## Notice
+## Disclaimer
 
-This repository provides a ROS2 integration layer for ThermoEye thermal cameras.
+This repository contains only the ROS2 integration layer.
 
-The original camera SDK (TmSDK) is developed and distributed by ThermoEye. This project does not redistribute or claim ownership of the SDK.
+TmSDK is developed and distributed by ThermoEye and is not included in this repository. Users must obtain and install the SDK separately.
