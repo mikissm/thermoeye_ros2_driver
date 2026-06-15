@@ -2,6 +2,12 @@
 
 ROS2 driver for ThermoEye thermal cameras based on TmSDK.
 
+## Demo
+
+Thermal image stream visualized in ROS2 rqt_image_view.
+
+![Demo](docs/demo.png)
+
 ## Features
 
 * Thermal camera initialization via TmSDK
@@ -50,20 +56,6 @@ ros2 run thermal_cam_driver thermal_node
 | Topic              | Type                  | Description          |
 | ------------------ | --------------------- | -------------------- |
 | /thermal/image_raw | sensor_msgs/msg/Image | Thermal image stream |
-
-## Package Structure
-
-```text
-thermal_cam_driver
-├── include/
-├── src/
-├── CMakeLists.txt
-└── package.xml
-```
-
-## Hardware
-
-* ThermoEye thermal camera
 
 ## Dependencies
 
