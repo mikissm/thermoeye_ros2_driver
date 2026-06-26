@@ -5,7 +5,7 @@
 ThermalNode::ThermalNode()
 : Node("thermal_node")
 {
-    thermal_camera_.initialize();
+    camera_available_ = thermal_camera_.initialize();
 
     image_color_pub_ =
         image_transport::create_publisher(
@@ -51,6 +51,9 @@ ThermalNode::ThermalNode()
 
 void ThermalNode::timerCallback()
 {
+    if (!camera_available_)
+        return;
+
     cv::Mat color;
     cv::Mat temp_map;
 

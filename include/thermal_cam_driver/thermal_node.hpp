@@ -33,4 +33,5 @@ private:
     rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_pub_;
 
     ThermalCamera thermal_camera_;
+    bool camera_available_;
 };
