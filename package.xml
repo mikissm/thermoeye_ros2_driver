@@ -7,7 +7,7 @@
 
   <version>0.0.0</version>
 
-  <description>Thermal camera ROS2 driver package</description>
+  <description>ThermoEye thermal camera driver and manager for ROS 2 Jazzy</description>
 
   <maintainer email="mikissm06@gmail.com">
     ssm
@@ -20,8 +20,15 @@
   <depend>rclcpp</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>python3-pyqt5</exec_depend>
+  <depend>libopencv-dev</depend>
   <depend>cv_bridge</depend>
   <depend>image_transport</depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

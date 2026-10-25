@@ -1,0 +1,37 @@
+"""Standalone thermal camera; SDK loader environment applies to this node only."""
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import EnvironmentVariable, LaunchConfiguration
+from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
+from launch.conditions import IfCondition
+
+
+def generate_launch_description():
+    return LaunchDescription([
+        DeclareLaunchArgument("sdk_library_path", default_value=@TMSDK_LIB_DIR_PY@),
+        DeclareLaunchArgument("poll_rate_hz", default_value="9.0"),
+        DeclareLaunchArgument("gain_mode", default_value="low"),
+        DeclareLaunchArgument("disable_auto_ffc", default_value="false"),
+        DeclareLaunchArgument("ffc_interval_s", default_value="0.0"),
+        DeclareLaunchArgument("ffc_recovery_s", default_value="2.0"),
+        DeclareLaunchArgument("startup_calibration", default_value="false"),
+        DeclareLaunchArgument("calibration_gui", default_value="false"),
+        Node(package="thermal_cam_driver", executable="thermal_calibration_gui.py",
+             output="screen", condition=IfCondition(LaunchConfiguration("calibration_gui"))),
+        Node(
+            package="thermal_cam_driver", executable="thermal_node",
+            name="thermal_node", output="screen",
+            parameters=[{"poll_rate_hz": ParameterValue(
+                LaunchConfiguration("poll_rate_hz"), value_type=float),
+                "gain_mode": LaunchConfiguration("gain_mode"),
+                "disable_auto_ffc": ParameterValue(LaunchConfiguration("disable_auto_ffc"), value_type=bool),
+                "startup_calibration": ParameterValue(LaunchConfiguration("startup_calibration"), value_type=bool),
+                "ffc_interval_s": ParameterValue(LaunchConfiguration("ffc_interval_s"), value_type=float),
+                "ffc_recovery_s": ParameterValue(LaunchConfiguration("ffc_recovery_s"), value_type=float)}],
+            additional_env={"LD_LIBRARY_PATH": [
+                LaunchConfiguration("sdk_library_path"), ":",
+                EnvironmentVariable("LD_LIBRARY_PATH", default_value=""),
+            ]},
+        ),
+    ])

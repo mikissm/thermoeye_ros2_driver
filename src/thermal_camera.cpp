@@ -1,5 +1,7 @@
 #include "thermal_cam_driver/thermal_camera.hpp"
 #include <iostream>
+#include <algorithm>
+#include <stdexcept>
 
 using namespace TmSDK;
 
@@ -11,23 +13,91 @@ ThermalCamera::ThermalCamera()
 
 ThermalCamera::~ThermalCamera()
 {
-    if (camera_)
-    {
-        try
-        {
-            camera_->Close();
-        }
-        catch (...)
-        {
-            std::cout << "[WARN] Camera Close failed" << std::endl;
-        }
-
-        delete camera_;
-        camera_ = nullptr;
-    }
+    close();
 }
 
-bool ThermalCamera::initialize()
+bool ThermalCamera::close() noexcept
+{
+    if (!camera_) return true;
+    bool success = true;
+    initialized_ = false;
+    const auto started = std::chrono::steady_clock::now();
+    // Match the viewer disconnect sequence. Polling has no registered callbacks,
+    // but ending acquisition first also handles SDK-owned dispatch resources.
+    auto step = [&success](const char* name, auto action) {
+        std::cout << "[CLOSE] " << name << " begin" << std::endl;
+        try { action(); }
+        catch (...) {
+            success = false;
+            std::cerr << "[CLOSE] " << name << " failed" << std::endl;
+        }
+        std::cout << "[CLOSE] " << name << " end" << std::endl;
+    };
+    step("EndAcquisition", [&] { camera_->EndAcquisition(); });
+    step("UnregisterEventHandler", [&] { camera_->UnregisterEventHandler(); });
+    step("UnregisterConnectionEventHandler", [&] { camera_->UnregisterConnectionEventHandler(); });
+    if (restore_ffc_mode_) {
+        step("RestoreFfcMode", [&] {
+            auto* control = camera_->GetTmControl();
+            if (!control || !control->SetFlatFieldCorrectionMode(previous_ffc_mode_) ||
+                    control->GetFlatFieldCorrectionMode() != previous_ffc_mode_)
+                throw std::runtime_error("FFC mode restoration/readback failed");
+        });
+        restore_ffc_mode_ = false;
+    }
+    step("Close", [&] { camera_->Close(); });
+    step("Delete", [&] { delete camera_; });
+    camera_ = nullptr;
+    selected_info_.reset();
+    const auto elapsed = std::chrono::duration<double>(
+        std::chrono::steady_clock::now() - started).count();
+    std::cout << "[CLOSE] complete success=" << success << " elapsed_s=" << elapsed << std::endl;
+    return success;
+}
+
+bool ThermalCamera::enableScheduledFfc()
+{
+    auto* control = camera_ ? camera_->GetTmControl() : nullptr;
+    if (!control) return false;
+    previous_ffc_mode_ = control->GetFlatFieldCorrectionMode();
+    std::cout << "[INFO] Original FFC mode=" << previous_ffc_mode_
+              << ", gain=" << control->GetGainModeState() << std::endl;
+    if (previous_ffc_mode_ != 0 && previous_ffc_mode_ != 1) return false;
+    if (previous_ffc_mode_ == 1) {
+        if (!control->SetFlatFieldCorrectionMode(0)) return false;
+        // Restore the original mode during orderly teardown, including failures
+        // after the setter succeeds but before setup completes.
+        restore_ffc_mode_ = true;
+        if (control->GetFlatFieldCorrectionMode() != 0) return false;
+    }
+    return true;
+}
+
+bool ThermalCamera::runFfc()
+{
+    auto* control = camera_ ? camera_->GetTmControl() : nullptr;
+    return control && control->RunFlatFieldCorrection();
+}
+
+bool ThermalCamera::configureGain(const std::string& mode)
+{
+    auto* control = camera_ ? camera_->GetTmControl() : nullptr;
+    if (!control) return false;
+    const int before = control->GetGainModeState();
+    if (mode == "unchanged") {
+        std::cout << "[INFO] Gain unchanged, readback=" << before << std::endl;
+        return true;
+    }
+    const int target = mode == "low" ? 1 : mode == "high" ? 0 : -1;
+    if (target < 0) return false;
+    if (before != target && !control->SetGainModeState(target)) return false;
+    const int after = control->GetGainModeState();
+    std::cout << "[INFO] Gain requested=" << mode << " before=" << before
+              << " readback=" << after << std::endl;
+    return after == target;
+}
+
+bool ThermalCamera::initialize(const std::string& device_port)
 {
     std::cout << "[INFO] GetCameraList..." << std::endl;
 
@@ -41,6 +111,17 @@ bool ThermalCamera::initialize()
         return false;
     }
 
+    auto selected = list.begin();
+    if (!device_port.empty()) {
+        selected = std::find_if(list.begin(), list.end(), [&](const auto& info) {
+            return info.ComPort == device_port;
+        });
+        if (selected == list.end()) {
+            std::cerr << "[ERROR] Selected camera disappeared: " << device_port << std::endl;
+            return false;
+        }
+    }
+    selected_info_ = std::make_unique<TmLocalCamInfo>(*selected);
     camera_ = new TmLocalCamera();
 
     if (!camera_)
@@ -55,7 +136,9 @@ bool ThermalCamera::initialize()
 
     try
     {
-        ok = camera_->Open(&list[0]);
+        std::cout << "[OPEN] " << selected_info_->Name << " port="
+                  << selected_info_->ComPort << " index=" << selected_info_->Index << std::endl;
+        ok = camera_->Open(selected_info_.get());
     }
     catch (const std::exception& e)
     {
@@ -84,6 +167,24 @@ bool ThermalCamera::initialize()
     }
 
     initialized_ = true;
+    camera_->SetTempUnit(TmSDK::TempUnit::CELSIUS);
+
+    // Read-only startup evidence for afterimage investigation; do not change gain.
+    if (auto* control = camera_->GetTmControl()) {
+        try {
+            std::cout << "[INFO] Sensor model=" << control->GetProductModelName()
+                      << " firmware=" << control->GetFirmwareVersion()
+                      << " gain=" << control->GetGainModeState()
+                      << " FFC mode=" << control->GetFlatFieldCorrectionMode() << std::endl;
+            double interval = 0, threshold = 0;
+            if (control->GetFlatFieldCorrectionParameters(interval, threshold))
+                std::cout << "[INFO] Device FFC interval=" << interval
+                          << " trigger threshold=" << threshold << std::endl;
+            else std::cout << "[WARN] Device FFC parameters unavailable" << std::endl;
+        } catch (const std::exception& error) {
+            std::cout << "[WARN] Sensor status query failed: " << error.what() << std::endl;
+        }
+    }
 
     std::cout << "[INFO] Camera initialized OK" << std::endl;
 
@@ -115,7 +216,6 @@ bool ThermalCamera::getFrame(
 
     if (!ok)
     {
-        std::cout << "[WARN] QueryFrame failed" << std::endl;
         return false;
     }
 
