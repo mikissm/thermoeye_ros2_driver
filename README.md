@@ -8,6 +8,12 @@ A Qt control window provides camera discovery, connection and measurement contro
 SDK binaries are obtained from the [official ThermoEye release](https://github.com/ThermoEye/TmSDK/releases/tag/2.1.0);
 they are not included in this repository.
 
+## Demo
+
+Thermal image stream displayed in ROS 2.
+
+![Demo](docs/demo.png)
+
 ## Install
 
 Install ROS 2 Jazzy first and source its environment. Place the repository under
